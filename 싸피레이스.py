@@ -80,78 +80,78 @@ class DrivingClient(DrivingController):
         set_steering += middle_add # middle_add : -0.075 ~ +0.075
         
         ## 긴급 및 예외 상황 처리(초기화) ########################################################################################
-        full_throttle = True # 풀악셀 밟을지
-        emergency_brake = False # 비상 브레이크 밟을지
+        full_throttle = True # 풀악셀은 밟아둠
+        emergency_brake = False # 비상 브레이크는 일단 떼둠
 
         ## 전방 커브의 각도가 큰 경우 속도를 제어함
         ## 차량 핸들 조정을 위해 참고하는 커브 보다 조금 더 멀리 참고하여 미리 속도를 줄임
-        road_range = int(sensing_info.speed / 30)
-        for i in range(0, road_range):
-            fwd_angle = abs(sensing_info.track_forward_angles[i])
+        road_range = int(sensing_info.speed / 30) # road_range : ~29km(0), 30~59km(0-1), 60~89km(0-2), 90~119km(0-3), 120~149km(0-4), 150km~(0-5)
+        for i in range(0, road_range): # 바로 앞 구간부터 순차적으로 고려
+            fwd_angle = abs(sensing_info.track_forward_angles[i]) 
             if fwd_angle > 45:  ## 커브가 45도 이상인 경우 brake, throttle 을 제어
-                full_throttle = False
+                full_throttle = False # 풀 악셀을 뗌
             if fwd_angle > 80:  ## 커브가 80도 이상인 경우 steering 까지 추가로 제어
-                emergency_brake = True
-                break
+                emergency_brake = True # 비상 브레이크 밟음
+                break # 다른 구간은 더이상 고려하지 않음
 
-        ## brake, throttle 제어
-        set_brake = 0.0
-        if full_throttle == False:
-            if sensing_info.speed > 100:
-                set_brake = 0.3
-            if sensing_info.speed > 120:
-                set_throttle = 0.7
-                set_brake = 0.7
-            if sensing_info.speed > 130:
-                set_throttle = 0.5
-                set_brake = 1.0
+        ## brake, throttle 제어 # 결국 마지막에 남는 set_throttle값과 set_brake값이 맨 밑에 가서 적용됨
+        set_brake = 0.0 # 밟지 않음으로 초기화
+        if full_throttle == False: # 풀악셀을 밟지 않을때
+            if sensing_info.speed > 100: # 100km 넘어가면
+                set_brake = 0.3 # 속도 증가 (풀 악셀, 세미 브레이크)
+            if sensing_info.speed > 120: # 120km 넘어가면
+                set_throttle = 0.7 # 속도 유지 (노말 악셀, 노말 브레이크)
+                set_brake = 0.7 
+            if sensing_info.speed > 130: # 130km 넘어가면
+                set_throttle = 0.5 # 속도 감소 (하프 악셀, 풀 브레이크)
+                set_brake = 1.0 
 
         ## steering 까지 추가로 제어
-        if emergency_brake:
-            if set_steering > 0:
-                set_steering += 0.3
-            else:
-                set_steering -= 0.3
+        if emergency_brake: # 비상 브레이크 밟을때
+            if set_steering > 0: # 오른쪽으로 커브돌때
+                set_steering += 0.3 # 커브 0.3 추가
+            else: # 왼쪽으로 커브돌때
+                set_steering -= 0.3 # 커브 -0.3 추가
 
         ## 충돌 상황 감지 후 회피 하기 (1~5 단계)
         ## 1. 30Km/h 이상의 속도로 달리는 경우 정상 적인 상황으로 간주
         if sensing_info.speed > 30.0:
-            self.is_accident = False
-            self.recovery_count = 0
-            self.accident_count = 0
+            self.is_accident = False # 사고 안났나고 인식
+            self.recovery_count = 0 # 복구 카운트 초기화
+            self.accident_count = 0 # 사고 카운트 초기화
 
-        ## 2. 레이싱 시작 후 Speed 1km/h 이하가 된 경우 상황 체크
-        if sensing_info.lap_progress > 0.5 and self.is_accident == False and \
-           (sensing_info.speed < 1.0 and sensing_info.speed > -1.0):
-            self.accident_count += 1
+        ## 2. 레이싱 시작 후 Speed 1km/h 이하가 된 경우 상황 체크 (사고 직후 장애물이나 벽에서 살짝 밀려난 경우)
+        if sensing_info.lap_progress > 0.5 and self.is_accident == False and \ 
+           (sensing_info.speed < 1.0 and sensing_info.speed > -1.0): # 구간의 절반도 가지 않았는데, 사고는 나지 않았고, 속도가 -1km ~ 1km인 경우
+            self.accident_count += 1 # 사고 카운트
 
         ## 3. Speed 1km/h 이하인 상태가 지속된 경우 충돌로 인해 멈준 것으로 간주
-        if self.accident_count > 6:
-            self.is_accident = True
+        if self.accident_count > 6: # 사고카운트가 6이 넘어가면 (0.1초마다 적용되었으니 0.6초가 지난 경우)
+            self.is_accident = True # 사고났음을 알림
 
         ## 4. 충돌로 멈춘 경우 후진 시작
-        if self.is_accident == True:
-            set_steering = 0.02
-            set_brake = 0.0
-            set_throttle = -1
-            self.recovery_count += 1
+        if self.is_accident == True: # 사고난경우
+            set_steering = 0.02 # 오른쪽으로 핸들 살짝 꺾은 후
+            set_brake = 0.0 # 브레이크는 떼고
+            set_throttle = -1 # 풀악셀로 후진
+            self.recovery_count += 1 # 사고를 복구한것으로 카운트
 
         ## 5. 어느 정도 후진이 되었을 때 충돌을 회피 했다고 간주 후 정상 주행 상태로 돌림
-        if self.recovery_count > 20:
-            self.is_accident = False
-            self.recovery_count = 0
-            self.accident_count = 0
-            set_steering = 0
-            set_brake = 0
-            set_throttle = 0
+        if self.recovery_count > 20: # 복구 카운트가 20이 넘은 경우 (0.1초마다 적용되었으니 2초가 지난 경우)
+            self.is_accident = False # 사고를 복구했다고 표시
+            self.recovery_count = 0 # 복구 카운트 초기화
+            self.accident_count = 0 # 사고 카운트 초기화
+            set_steering = 0 # 핸들 초기화
+            set_brake = 0 # 브레이크 초기화
+            set_throttle = 0 # 악셀 초기화
         ################################################################################################################
 
         # Moving straight forward
-        car_controls.steering = set_steering
-        car_controls.throttle = set_throttle
-        car_controls.brake = set_brake
+        car_controls.steering = set_steering # 위에서 결정한 핸들 값을 적용 (0.1초마다 계산하여 적용)
+        car_controls.throttle = set_throttle # 위에서 결정한 악셀 값을 적용 (0.1초마다 계산하여 적용)
+        car_controls.brake = set_brake # 위에서 결정한 브레이크 값을 적용 (0.1초마다 계산하여 적용)
         
-        if self.is_debug:
+        if self.is_debug: # 코드상 문제 생겼을때는 그때의 핸들, 악셀, 브레이크 값 출력 
             print("[MyCar] steering:{}, throttle:{}, brake:{}"\
                   .format(car_controls.steering, car_controls.throttle, car_controls.brake))
 
@@ -175,8 +175,8 @@ class DrivingClient(DrivingController):
 
 if __name__ == '__main__':
     print("[MyCar] Start Bot!")
-    client = DrivingClient()
-    return_code = client.run()
+    client = DrivingClient() # 위 함수 실행 # car_controls 리턴
+    return_code = client.run() # 리턴받은 car_controls 실행
     print("[MyCar] End Bot!")
 
     exit(return_code)
