@@ -83,20 +83,20 @@ class DrivingClient(DrivingController):
         full_throttle = True # 풀악셀은 밟아둠
         emergency_brake = False # 비상 브레이크는 일단 떼둠
 
-        ## 전방 커브의 각도가 큰 경우 속도를 제어함
+        ## 전방 커브의 각도가 큰 경우 속도를 제어함 ################################################
         ## 차량 핸들 조정을 위해 참고하는 커브 보다 조금 더 멀리 참고하여 미리 속도를 줄임
         road_range = int(sensing_info.speed / 30) # road_range : ~29km(0), 30~59km(0-1), 60~89km(0-2), 90~119km(0-3), 120~149km(0-4), 150km~(0-5)
         for i in range(0, road_range): # 바로 앞 구간부터 순차적으로 고려
             fwd_angle = abs(sensing_info.track_forward_angles[i]) 
             if fwd_angle > 45:  ## 커브가 45도 이상인 경우 brake, throttle 을 제어
                 full_throttle = False # 풀 악셀을 뗌
-            if fwd_angle > 80:  ## 커브가 80도 이상인 경우 steering 까지 추가로 제어
+            if fwd_angle > 75:  ## 커브가 #75도# 이상인 경우 steering 까지 추가로 제어
                 emergency_brake = True # 비상 브레이크 밟음
                 break # 다른 구간은 더이상 고려하지 않음
 
         ## brake, throttle 제어 # 결국 마지막에 남는 set_throttle값과 set_brake값이 맨 밑에 가서 적용됨
         set_brake = 0.0 # 밟지 않음으로 초기화
-        if full_throttle == False: # 풀악셀을 밟지 않을때
+        if full_throttle == False: # 풀악셀을 밟지 않을때 ###########################################
             if sensing_info.speed > 100: # 100km 넘어가면
                 set_brake = 0.3 # 속도 증가 (풀 악셀, 세미 브레이크)
             if sensing_info.speed > 120: # 120km 넘어가면
@@ -107,13 +107,13 @@ class DrivingClient(DrivingController):
                 set_brake = 1.0 
 
         ## steering 까지 추가로 제어
-        if emergency_brake: # 비상 브레이크 밟을때
+        if emergency_brake: # 비상 브레이크 밟을때 ####################################################
             if set_steering > 0: # 오른쪽으로 커브돌때
                 set_steering += 0.3 # 커브 0.3 추가
             else: # 왼쪽으로 커브돌때
                 set_steering -= 0.3 # 커브 -0.3 추가
 
-        ## 충돌 상황 감지 후 회피 하기 (1~5 단계)
+        ## 충돌 상황 감지 후 회피 하기 (1~5 단계) ##############################################################################################
         ## 1. 30Km/h 이상의 속도로 달리는 경우 정상 적인 상황으로 간주
         if sensing_info.speed > 30.0:
             self.is_accident = False # 사고 안났나고 인식
@@ -121,8 +121,7 @@ class DrivingClient(DrivingController):
             self.accident_count = 0 # 사고 카운트 초기화
 
         ## 2. 레이싱 시작 후 Speed 1km/h 이하가 된 경우 상황 체크 (사고 직후 장애물이나 벽에서 살짝 밀려난 경우)
-        if sensing_info.lap_progress > 0.5 and self.is_accident == False and \ 
-           (sensing_info.speed < 1.0 and sensing_info.speed > -1.0): # 구간의 절반도 가지 않았는데, 사고는 나지 않았고, 속도가 -1km ~ 1km인 경우
+        if sensing_info.lap_progress > 0.5 and self.is_accident == False and (sensing_info.speed < 1.0 and sensing_info.speed > -1.0): # 구간의 절반도 가지 않았는데, 사고는 나지 않았고, 속도가 -1km ~ 1km인 경우
             self.accident_count += 1 # 사고 카운트
 
         ## 3. Speed 1km/h 이하인 상태가 지속된 경우 충돌로 인해 멈준 것으로 간주
@@ -145,6 +144,9 @@ class DrivingClient(DrivingController):
             set_brake = 0 # 브레이크 초기화
             set_throttle = 0 # 악셀 초기화
         ################################################################################################################
+        # 레이싱 출발 직후 # 무조건 직진
+        if sensing_info.lap_progress < 0.1:
+            set_steering = 0 # 핸들 초기화
 
         # Moving straight forward
         car_controls.steering = set_steering # 위에서 결정한 핸들 값을 적용 (0.1초마다 계산하여 적용)
