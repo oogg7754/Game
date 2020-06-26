@@ -48,10 +48,12 @@ class DrivingClient(DrivingController):
 
         ###########################################################################
 
+        ## 핸들을 돌리는데 필요한 변수 : 전방의 커브 각도, 차량 속도 (+ 중앙에서 벗어난 정도) 
+
         ## 도로의 실제 폭의 1/2 로 계산됨
         half_load_width = self.half_road_limit - 1.25 # 도로폭 : 10m, 차량 전폭 : 2m
 
-        ## 차량 핸들 조정을 위해 참고할 전방의 커브 값 가져오기
+        ## 차량 핸들 조정을 위해 참고할 전방의 커브 값 가져오기 
         angle_num = int(sensing_info.speed / 45) # 0~45km : 0번째 각도 참조, 45~89km : 1번째 각도 참조, 90~134km : 2번째 각도 참조, 135~179km : 4번째 각도 참조
         ref_angle = sensing_info.track_forward_angles[angle_num]
 
@@ -75,7 +77,6 @@ class DrivingClient(DrivingController):
         # 커브가 오른쪽(+)으로 꺾여있고, 주행 각도가 왼쪽(-)이면 오른쪽으로 핸들 돌리기(+)
         # (참고할 전방의 커브 - 내 차량의 주행 각도)는 일반적인 경우 -60도에서 +60까지 일것으로 예상
         
-
         ## 차선 중앙정렬 값을 추가로 고려함
         set_steering += middle_add # middle_add : -0.075 ~ +0.075
         
@@ -117,34 +118,44 @@ class DrivingClient(DrivingController):
         ## 장애물 피하기 
         ## 1. 장애물 인식
         if sensing_info.track_forward_obstacles: # 장애물이 인식될때
-            print(sensing_info.track_forward_obstacles[0]['dist'])
             first_obstacles = sensing_info.track_forward_obstacles[0]
             first_dist = first_obstacles['dist']
         ## 2. 피할 조건 설정
             if first_dist < 20: # 20m 이내로 장애물이 들어오면
                 first_to_middle = first_obstacles['to_middle']
                 car_to_middle = sensing_info.to_middle
-                diff = first_to_middle - car_to_middle # 장애물과 차의 위치차이
+                diff_to_middle = first_to_middle - car_to_middle # 장애물과 차의 위치차이
+                print('diff_to_middle', diff_to_middle)
                 ## 3. 스티어링 조절
-                if abs(diff) < 2.2: # 차이가 2.2m보다 작으면 # 0.2m는 여유
-                    need_steering = 2.2 - abs(diff) # 스티어링이 필요한 정도 # 차이가 0일때 2.2
+                if abs(diff_to_middle) < (2 + 0.2): # 차이가 2.2m보다 작으면 # 0.2m는 여유
+                    need_steering = ((2 + 0.2) - abs(diff_to_middle)) / (2 + 0.2) # 스티어링이 필요한 정도 # 차이가 0일때 1
                     if car_to_middle > 0: # 차가 트랙보다 오른쪽에 있으면
                         # 오른쪽 트랙에 여유가 있는지 계산
-                        if 5 - max(car_to_middle, first_to_middle) > 2.2: 
+                        if 5 - max(car_to_middle, first_to_middle) > (2 + 0.2): 
                             # 오른쪽으로 이동
-                            set_steering = +need_steering / (2.2 * 2) # 차이가 0일때 set_steering = 0.5
+                            set_steering = +need_steering * 0.5 # steer_factor에 따라 조절 # steer_factor가 0일때?
                         else:
                             # 왼쪽으로 이동
-                            set_steering = -need_steering / (2.2 * 2) 
-                    if car_to_middle > 0: # 차가 트랙보다 왼쪽에 있으면
+                            set_steering = -need_steering * 0.5 # 속도가 커지면 steer_factor 커짐, 커브각(set_steering) 줄어듬  
+                    if car_to_middle < 0: # 차가 트랙보다 왼쪽에 있으면
                         # 왼쪽 트랙에 여유가 있는지 계산
-                        if 5 + min(car_to_middle, first_to_middle) > 2.2: 
+                        if 5 + min(car_to_middle, first_to_middle) > (2 + 0.2): 
                             # 왼쪽으로 이동
-                            set_steering = -need_steering / (2.2 * 2) 
+                            set_steering = -need_steering / 0.5
                         else:
                             # 오른쪽으로 이동
-                            set_steering = +need_steering / (2.2 * 2) 
-                    # 장애물이 정가운데 있는경우 
+                            set_steering = +need_steering / 0.5
+                    # 차량이 정가운데 있는경우 
+                    else:
+                        # 장애물이 왼쪽에 있는경우 핸들은 오른쪽으로 
+                        if first_to_middle < 0:
+                            set_steering = +need_steering * 0.5
+                        # 장애물이 오른쪽에 있는경우 핸들은 왼쪽으로
+                        if first_to_middle > 0:
+                            set_steering = -need_steering / 0.5
+                print('set_steering', set_steering)
+                if set_steering > 1: # set_steering이 1보다 커진 경우 보정해줌
+                    set_steering = 1
 
         ## 충돌 상황 감지 후 회피 하기 (1~5 단계)
         ## 1. 30Km/h 이상의 속도로 달리는 경우 정상 적인 상황으로 간주
