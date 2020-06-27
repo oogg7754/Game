@@ -126,6 +126,7 @@ class DrivingClient(DrivingController):
                 car_to_middle = sensing_info.to_middle
                 diff_to_middle = first_to_middle - car_to_middle # 장애물과 차의 위치차이
                 print('diff_to_middle', diff_to_middle)
+                steer_coeff = 50
                 ## 3. 스티어링 조절
                 if abs(diff_to_middle) < (2 + 0.2): # 차이가 2.2m보다 작으면 # 0.2m는 여유
                     need_steering = ((2 + 0.2) - abs(diff_to_middle)) / (2 + 0.2) # 스티어링이 필요한 정도 # 차이가 0일때 1
@@ -133,26 +134,26 @@ class DrivingClient(DrivingController):
                         # 오른쪽 트랙에 여유가 있는지 계산
                         if 5 - max(car_to_middle, first_to_middle) > (2 + 0.2): 
                             # 오른쪽으로 이동
-                            set_steering = +need_steering * 0.5 # steer_factor에 따라 조절 # steer_factor가 0일때?
+                            set_steering = +need_steering * steer_coeff / steer_factor # steer_factor에 따라 조절 # steer_factor가 0일때?
                         else:
                             # 왼쪽으로 이동
-                            set_steering = -need_steering * 0.5 # 속도가 커지면 steer_factor 커짐, 커브각(set_steering) 줄어듬  
+                            set_steering = -need_steering * steer_coeff / steer_factor # 속도가 커지면 steer_factor 커짐, 커브각(set_steering) 줄어듬  
                     if car_to_middle < 0: # 차가 트랙보다 왼쪽에 있으면
                         # 왼쪽 트랙에 여유가 있는지 계산
                         if 5 + min(car_to_middle, first_to_middle) > (2 + 0.2): 
                             # 왼쪽으로 이동
-                            set_steering = -need_steering / 0.5
+                            set_steering = -need_steering * steer_coeff / steer_factor
                         else:
                             # 오른쪽으로 이동
-                            set_steering = +need_steering / 0.5
+                            set_steering = +need_steering * steer_coeff / steer_factor
                     # 차량이 정가운데 있는경우 
                     else:
                         # 장애물이 왼쪽에 있는경우 핸들은 오른쪽으로 
                         if first_to_middle < 0:
-                            set_steering = +need_steering * 0.5
+                            set_steering = +need_steering * steer_coeff / steer_factor
                         # 장애물이 오른쪽에 있는경우 핸들은 왼쪽으로
                         if first_to_middle > 0:
-                            set_steering = -need_steering / 0.5
+                            set_steering = -need_steering * steer_coeff / steer_factor
                 print('set_steering', set_steering)
                 if set_steering > 1: # set_steering이 1보다 커진 경우 보정해줌
                     set_steering = 1
