@@ -121,7 +121,7 @@ class DrivingClient(DrivingController):
             first_obstacles = sensing_info.track_forward_obstacles[0]
             first_dist = first_obstacles['dist']
         ## 2. 피할 조건 설정
-            if first_dist < 20: # 20m 이내로 장애물이 들어오면
+            if first_dist < 30: # 30m 이내로 장애물이 들어오면
                 first_to_middle = first_obstacles['to_middle']
                 car_to_middle = sensing_info.to_middle
                 diff_to_middle = first_to_middle - car_to_middle # 장애물과 차의 위치차이
